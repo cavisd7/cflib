@@ -1,0 +1,126 @@
+{
+    "Description": "",
+    "Parameters" : {
+        "CloudFormationServiceRoleName" : {
+            "Type" : "String"
+        },
+        "CrossAccountRoleName" : {
+            "Type" : "String"
+        },
+        "CodePipelineServiceRoleName" : {
+            "Type" : "String"
+        },
+        "SourceAccountId" : {
+            "Type" : "String"
+        },
+        "KMSKeyId" : {
+            "Type" : "String"
+        },
+        "PipelineName" : {
+            "Type" : "String"
+        }
+    },
+    "Resources" : {
+        "CloudFormationServiceRole" : {
+            "Type" : "AWS::IAM::Role",
+            "Properties" : {
+                "RoleName" : { "Ref": "CloudFormationServiceRoleName" },
+                "Description" : "A service role used by CloudFormation",
+                "AssumeRolePolicyDocument" : {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": { "Service": "cloudformation.amazonaws.com" },
+                            "Action": "sts:AssumeRole"
+                        }
+                    ]
+                },
+                "Policies" : [
+                    {
+                        "PolicyName" : "CloudFormationPermissions",
+                        "PolicyDocument" : {
+                            "Version" : "2012-10-17",
+                            "Statement" : [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": "s3:*",
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "CrossAccountRole" : {
+            "Type" : "AWS::IAM::Role",
+            "Properties" : {
+                "RoleName" : { "Ref": "CrossAccountRoleName" },
+                "Description" : "",
+                "AssumeRolePolicyDocument" : {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": { "AWS": { "Fn::Sub": "arn:aws:iam::${SourceAccountId}:role/${CodePipelineServiceRoleName}" } },
+                            "Action": "sts:AssumeRole"
+                        }
+                    ]
+                },
+                "Policies" : [
+                    {
+                        "PolicyName" : "KMSToSharedAccount",
+                        "PolicyDocument" : {
+                            "Version" : "2012-10-17",
+                            "Statement" : [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "kms:DescribeKey",
+                                        "kms:GenerateDataKey*",
+                                        "kms:Encrypt",
+                                        "kms:ReEncrypt*",
+                                        "kms:Decrypt"
+                                    ],
+                                    "Resource": [
+                                        { "Fn::Sub" : [ "arn:aws:kms:${Region}:${SourceAccountId}:key/${KMSKeyId}", { "Region" : { "Ref" : "AWS::Region" } } ] }
+                                    ]
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "PolicyName" : "GetSourceArtifactFromSharedAccount",
+                        "PolicyDocument" : {
+                            "Version" : "2012-10-17",
+                            "Statement" : [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "cloudformation:*",
+                                        "iam:PassRole"
+                                    ],
+                                    "Resource": "*"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "s3:Get*",
+                                        "s3:Put*",
+                                        "s3:ListBucket"
+                                    ],
+                                    "Resource": [
+                                        { "Fn::Sub" : "arn:aws:s3:::${PipelineName}/*" }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "Outputs": {
+    }
+}
