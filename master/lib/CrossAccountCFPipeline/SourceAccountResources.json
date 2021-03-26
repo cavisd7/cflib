@@ -2,10 +2,6 @@
     "Description": "",
     "Parameters" : {
         "CodePipelineServiceRoleName" : {
-            "Type" : "String",
-            "Default" : ""
-        },
-        "SourceAccountId" : {
             "Type" : "String"
         },
         "SourceAccountAccessFromSecAccountRole" : {
@@ -17,111 +13,39 @@
         "TargetAccountRoleName" : {
             "Type" : "String"
         },
-        "PipelineBucketName" : {
+        "TargetAccountCloudFormationServiceRoleName" : {
             "Type" : "String"
+        },
+        "PipelineBucketName" : {
+            "Type" : "String",
+            "AllowedPattern" : "^[a-z0-9]{5,40}$"
         },
         "PipelineName" : {
             "Type" : "String"
         },
         "BucketDeletionPolicy" : {
             "Type" : "String",
-            "AllowedValues" : []
+            "AllowedValues" : ["Retain", "Delete"],
+            "Default" : "Delete"
         },
         "RestartPipelineOnUpdate" : {
             "Type" : "String", 
             "AllowedValues" : ["true", "false"]
+        },
+        "CodeStarConnectionName" : {
+            "Type" : "String"
+        },
+        "GithubBranchName" : {
+            "Type" : "String"
+        },
+        "FullGithubRepositoryId" : {
+            "Type" : "String"
+        },
+        "TemplatePath" : {
+            "Type" : "String"
         }
     },
     "Resources" : {
-        "CrossAccountKey" : {
-            "Type" : "AWS::KMS::Key",
-            "Properties" : {
-                "Description" : "AES-256-GCM",
-                "Enabled" : true,
-                "EnableKeyRotation" : false,
-                "KeyPolicy" : {
-                    "Id": "key-cfpolicy-1",
-                    "Version": "2012-10-17",
-                    "Statement": [
-                        {
-                            "Sid": "Enable IAM User Permissions",
-                            "Effect": "Allow",
-                            "Principal": {
-                                "AWS": { "Fn::Sub": "arn:aws:iam::${SourceAccountId}:role/root" }
-                            },
-                            "Action": "kms:*",
-                            "Resource": "*"
-                        },
-                        {
-                            "Sid": "Allow access for Key Administrators",
-                            "Effect": "Allow",
-                            "Principal": {
-                                "AWS": { "Fn::Sub": "arn:aws:iam::${SourceAccountId}:role/${SourceAccountAccessFromSecAccountRole}" }
-                            },
-                            "Action": [
-                                "kms:Create*",
-                                "kms:Describe*",
-                                "kms:Enable*",
-                                "kms:List*",
-                                "kms:Put*",
-                                "kms:Update*",
-                                "kms:Revoke*",
-                                "kms:Disable*",
-                                "kms:Get*",
-                                "kms:Delete*",
-                                "kms:TagResource",
-                                "kms:UntagResource",
-                                "kms:ScheduleKeyDeletion",
-                                "kms:CancelKeyDeletion"
-                            ],
-                            "Resource": "*"
-                        },
-                        {
-                            "Sid": "Allow use of the key",
-                            "Effect": "Allow",
-                            "Principal": {
-                                "AWS": [
-                                    { "Fn::Sub": "arn:aws:iam::${SourceAccountId}:role/${CodePipelineServiceRoleName}" },
-                                    { "Fn::Sub": "arn:aws:iam::${TargetAccountId}:root" }
-                                ]
-                            },
-                            "Action": [
-                                "kms:Encrypt",
-                                "kms:Decrypt",
-                                "kms:ReEncrypt*",
-                                "kms:GenerateDataKey*",
-                                "kms:DescribeKey"
-                            ],
-                            "Resource": "*"
-                        },
-                        {
-                            "Sid": "Allow attachment of persistent resources",
-                            "Effect": "Allow",
-                            "Principal": {
-                                "AWS": [
-                                    { "Fn::Sub": "arn:aws:iam::${SourceAccountId}:role/${CodePipelineServiceRoleName}" },
-                                    { "Fn::Sub": "arn:aws:iam::${TargetAccountId}:root" }
-                                ]
-                            },
-                            "Action": [
-                                "kms:CreateGrant",
-                                "kms:ListGrants",
-                                "kms:RevokeGrant"
-                            ],
-                            "Resource": "*",
-                            "Condition": {
-                                "Bool": {
-                                    "kms:GrantIsForAWSResource": "true"
-                                }
-                            }
-                        }
-                    ]
-                },
-                "KeySpec" : "SYMMETRIC_DEFAULT",
-                "KeyUsage" : "ENCRYPT_DECRYPT",
-                "PendingWindowInDays" : 30
-            }
-        },
         "CodePipelineServiceRole" : {
             "Type" : "AWS::IAM::Role",
             "Properties" : {
@@ -216,21 +140,108 @@
                 ]
             }
         },
+        "CrossAccountKey" : {
+            "Type" : "AWS::KMS::Key",
+            "Properties" : {
+                "Description" : "AES-256-GCM",
+                "Enabled" : true,
+                "EnableKeyRotation" : false,
+                "KeyPolicy" : {
+                    "Id": "key-cfpolicy-1",
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "Enable IAM User Permissions",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": { "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:root" }
+                            },
+                            "Action": "kms:*",
+                            "Resource": "*"
+                        },
+                        {
+                            "Sid": "Allow access for Key Administrators",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": { "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/${SourceAccountAccessFromSecAccountRole}" }
+                            },
+                            "Action": [
+                                "kms:Create*",
+                                "kms:Describe*",
+                                "kms:Enable*",
+                                "kms:List*",
+                                "kms:Put*",
+                                "kms:Update*",
+                                "kms:Revoke*",
+                                "kms:Disable*",
+                                "kms:Get*",
+                                "kms:Delete*",
+                                "kms:TagResource",
+                                "kms:UntagResource",
+                                "kms:ScheduleKeyDeletion",
+                                "kms:CancelKeyDeletion"
+                            ],
+                            "Resource": "*"
+                        },
+                        {
+                            "Sid": "Allow use of the key",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": [
+                                    { "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/${CodePipelineServiceRoleName}" },
+                                    { "Fn::Sub": "arn:aws:iam::${TargetAccountId}:root" }
+                                ]
+                            },
+                            "Action": [
+                                "kms:Encrypt",
+                                "kms:Decrypt",
+                                "kms:ReEncrypt*",
+                                "kms:GenerateDataKey*",
+                                "kms:DescribeKey"
+                            ],
+                            "Resource": "*"
+                        },
+                        {
+                            "Sid": "Allow attachment of persistent resources",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": [
+                                    { "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/${CodePipelineServiceRoleName}" },
+                                    { "Fn::Sub": "arn:aws:iam::${TargetAccountId}:root" }
+                                ]
+                            },
+                            "Action": [
+                                "kms:CreateGrant",
+                                "kms:ListGrants",
+                                "kms:RevokeGrant"
+                            ],
+                            "Resource": "*",
+                            "Condition": {
+                                "Bool": {
+                                    "kms:GrantIsForAWSResource": "true"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "KeySpec" : "SYMMETRIC_DEFAULT",
+                "KeyUsage" : "ENCRYPT_DECRYPT",
+                "PendingWindowInDays" : 30
+            }
+        },
         "CodePipelineArtifactBucket" : {
             "Type" : "AWS::S3::Bucket",
             "Properties" : {
-                "DeletionPolicy" : { "Fn::Sub": "BucketDeletionPolicy" },
-                "BucketName" : { "Fn::Sub": "${PipelineBucketName}" },
-                "Tags" : [ { "Key" : "pipeline", "Value" : { "Fn::Sub": "${PipelineName}" } } ]
+                "BucketName" : { "Ref": "PipelineBucketName" },
+                "Tags" : [ { "Key" : "pipeline", "Value" : { "Ref": "PipelineName" } } ]
             }
         },
         "CodePipelineArtifactBucketPolicy" : {
             "Type" : "AWS::S3::BucketPolicy",
             "Properties" : {
-                "Bucket" : { "Fn::Sub": "${PipelineBucketName}" },
+                "Bucket" : { "Ref": "PipelineBucketName" },
                 "PolicyDocument" : {
                     "Version": "2012-10-17",
-                    "Id": "Policy1553183091390",
                     "Statement": [
                         {
                             "Sid": "",
@@ -257,18 +268,25 @@
                 }
             }
         },
+        "CodeStarGithubConnection" : {
+            "Type" : "AWS::CodeStarConnections::Connection",
+            "Properties" : {
+                "ConnectionName" : { "Ref" : "CodeStarConnectionName" },
+                "ProviderType" : "GitHub"
+            }
+        },
         "InfrastructurePipeline" : {
             "Type" : "AWS::CodePipeline::Pipeline",
             "Properties" : {
                 "ArtifactStore" : {
                     "Type" : "S3",
-                    "Location" : { "Ref": "${PipelineBucketName}" },
+                    "Location" : { "Ref": "PipelineBucketName" },
                     "EncryptionKey" : {
                         "Id" : { "Fn::GetAtt" : [ "CrossAccountKey", "Arn" ] },
                         "Type" : "KMS"
                     }
                 },
-                "Name" : { "Ref" : "${PipelineName}" },
+                "Name" : { "Ref" : "PipelineName" },
                 "RestartExecutionOnUpdate" : false,
                 "RoleArn" : { "Fn::GetAtt" : [ "CodePipelineServiceRole", "Arn" ] },
                 "Stages" : [  
@@ -285,9 +303,9 @@
                                 },
                                 "RunOrder" : 1,
                                 "Configuration" : {
-                                    "BranchName": "sandbox",
-                                    "ConnectionArn": { "Fn::Sub" : "arn:aws:codestar-connections:us-east-2:${SourceAccountId}:connection/<ID>" },
-                                    "FullRepositoryId": "cavisd7/cflib",
+                                    "BranchName": { "Ref" : "GithubBranchName" },
+                                    "ConnectionArn": { "Ref" : "CodeStarGithubConnection" },
+                                    "FullRepositoryId": { "Ref" : "FullGithubRepositoryId" },
                                     "OutputArtifactFormat": "CODE_ZIP"
                                 },
                                 "OutputArtifacts" : [
@@ -307,7 +325,7 @@
                                 "Actions" : [
                                     {
                                         "Name" : "Deploy",
-                                        "RoleArn" : {!!},
+                                        "RoleArn" : { "Fn::Sub" : "arn:aws:iam::${TargetAccountId}:role/${TargetAccountRoleName}" },
                                         "ActionTypeId": {
                                             "Category": "Deploy",
                                             "Owner": "AWS",
@@ -317,9 +335,9 @@
                                         "RunOrder" : 1,
                                         "Configuration" : {
                                             "ActionMode" : "CREATE_UPDATE",
-                                            "RoleArn" : {!!},
+                                            "RoleArn" : { "Fn::Sub" : "arn:aws:iam::${TargetAccountId}:role/${TargetAccountCloudFormationServiceRoleName}" },
                                             "StackName" : "",
-                                            "TemplatePath" : "SourceArtifact::main.json"
+                                            "TemplatePath" : { "Fn::Sub" : "SourceArtifact::${TemplatePath}" }
                                         },
                                         "OutputArtifacts" : [],
                                         "InputArtifacts" : [ { "Name": "SourceArtifact" } ],
